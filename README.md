@@ -1,78 +1,27 @@
-# Spot Duel — online 1v1 Spot the Difference
+# Spot Duel V3 — مين المختلفة؟
 
-A working MVP source project for **Netlify + Supabase**, no VPS and no persistent Node server required.
+Two-player private room game: find the one different item among four nearly matching illustrated foods.
 
 ## Features
-- Two-player private rooms with a 6-character invitation code/link
-- Anonymous login (no email needed)
-- Ready-up phase with 3-second countdown
-- Both players click the same two puzzle images
-- Five private answer coordinates checked in PostgreSQL
-- First player to claim a difference earns 20 points
-- 120-second timed match, winner/draw screen
-- Supabase realtime room updates plus 2-second polling fallback
-- Responsive desktop / mobile UI
+- Netlify-hosted Vite/React frontend
+- Supabase anonymous authentication and Realtime + polling
+- 10 rounds; one choice per player per round
+- Both players answer independently; no speed bonus; one point for each correct answer
+- 120-second overall timer; highest score wins; draws allowed
 
-## 1. Create Supabase backend
-1. Go to https://supabase.com and create a project.
-2. Open **Authentication → Providers → Anonymous Sign-Ins** and enable it.
-3. Open **SQL Editor**, paste the entire `supabase/schema.sql` file, and run it.
-4. In **Project Settings → API** (or the current project's API Keys screen), get the Project URL and a **publishable/anon** key. **Never use a service_role / secret key in Vite.**
+## Upgrade from V2
+1. Open Supabase SQL Editor in the EXISTING project.
+2. Execute `supabase/upgrade-v3.sql` **once**, after V1 and V2 migrations.
+3. Create new rooms for V3; don't reuse V1/V2 rooms.
+4. Netlify environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (publishable key).
+5. Git push to your connected Netlify GitHub repo. Build: `npm run build`; publish: `dist`.
 
-## 2. Run locally
-Requirements: Node.js 20.19+ recommended.
-
-```bash
+## Local dev
+```
 npm install
 cp .env.example .env
-```
-
-On Windows PowerShell instead of `cp` use `Copy-Item .env.example .env`.
-Edit `.env`:
-
-```dotenv
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-publishable-key
-```
-
-```bash
 npm run dev
 ```
 
-Open the local URL. Open a second browser in private/incognito mode (separate Supabase anonymous session), then create a room and join using the code. Both players press Ready and find differences.
-
-## 3. Publish on Netlify
-- Push this folder to a GitHub repo.
-- Netlify → Add new project → Import existing project → Select repo.
-- Build command: `npm run build`; publish directory: `dist`.
-- Under environment variables, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` with the same **public** values as your `.env`.
-- Deploy. The `netlify.toml` file supplies settings and SPA fallback.
-
-## Gameplay / anti-cheat notes
-- The differences are server-side in `duel_answers` (RLS enabled, no SELECT grants).
-- The `duel_pick` RPC validates player membership, clock state, clicked point, and prevents already-claimed differences from scoring again, all in a row-locked transaction.
-- The player receives verified scores and the **already found** locations only.
-- A determined attacker can still inspect public SVG artwork, automate mouse events, or brute-force clicks. Add input rate limiting, CAPTCHA and abuse monitoring before a broad public launch. The current MVP is intended for small-scale friend matches.
-- Anonymous sign-in persists locally in each browser. Clearing browser data resets identity; rooms are not resumable with a new anonymous identity.
-- This is **one round / one puzzle** with six differences. Add rounds/puzzles and player moderation later.
-
-## Troubleshooting
-- Can't connect: verify the URL, publishable key, and that Anonymous Sign-Ins is enabled.
-- SQL editor: run `schema.sql` on a new Supabase project; policies are not idempotent if re-run in full.
-- Rooms not updating: check Supabase Realtime publication. The UI also polls every two seconds.
-- Two players in one browser profile are the same anonymous account; use an incognito session or another device.
-- After changing `VITE_` variables on Netlify, trigger a new build.
-
-## Version 2 — Important upgrade for existing Supabase projects
-
-**If you already ran `schema.sql` (as in the initial install), do not rerun it.**
-Open Supabase > SQL Editor > New query and execute the entire `supabase/upgrade-v2.sql` **once before deploying the new frontend**. This upgrade resets any ongoing games and moves finds to an independent per-player table. Create new rooms after upgrading.
-
-New rules:
-- Six subtle differences in the illustrated inventor's study, both images available to every player.
-- Players find all six independently, without stealing or hiding differences from the opponent.
-- 120 seconds. If both players finish, the faster completion wins. At timeout, a player who completed all 6 wins; otherwise, more independently found differences wins, with a tie for equal progress.
-- No bonus points per click; the UI tracks only x/6 found and completion times.
-- Private hit verification still lives in PostgreSQL, not the browser.
-
-Images are original assets in `public/puzzles`.
+## Note on fairness
+The SQL function checks the logged-in player's membership, ordering and score, and never offers direct read of the answer table. The illustrations and their variant parameters are shipped in browser JavaScript, so a technically experienced player could inspect client code to infer the answers. For public competitive release, render the puzzle variants from non-answer-revealing assets and randomize puzzles server-side. This MVP is intended for friendly matches.

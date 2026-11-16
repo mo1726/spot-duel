@@ -5,3 +5,23 @@
 body{background:radial-gradient(ellipse 62% 36% at 76% 1%,#57336354,transparent 78%),radial-gradient(ellipse 38% 32% at 0% 48%,#34265755,transparent 78%),#0b0c19}
 .nav{border-bottom:1px solid #ffffff19}.brand-mark{background:linear-gradient(145deg,#ffe1a0,#e8a86c);color:#211625;border-radius:13px;box-shadow:0 0 24px #d78d5355}.accent,.hero h1 span,.game-header h1 span{color:#ffcf91}.live-dot{background:#eabf8a;box-shadow:0 0 12px #f3ba78}.eyebrow,.features svg{color:#f4bc8d}.nav-pill{color:#e2c9dc;border-color:#765572}.hero h1{font-weight:800;letter-spacing:-3.8px}.hero p{color:#b9aec8}.panel,.preview-panel{background:linear-gradient(145deg,#211b31,#141726);border-color:#62516a77;border-radius:22px;box-shadow:0 16px 50px #0003}.preview-panel{background:linear-gradient(145deg,#241a34,#161b2b)}.primary{background:linear-gradient(110deg,#ffe0ad,#e9a569);color:#281d24;box-shadow:0 4px 24px #eab78322}.primary:hover:enabled{background:#ffe4bf}.secondary{background:#51415e}.small-tag{border-color:#efb279;color:#f4ce9a}.panel-heading svg{color:#f0ba8b}input{background:#121422;border-color:#66536a}input:focus{border-color:#eeb780}.scene{border-radius:12px;background:#241e2c;aspect-ratio:3/2}.scene img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}.preview-grid{gap:12px}.preview-panel .scene{box-shadow:0 9px 26px #0007}.scene-locked{cursor:default}.found-ring{width:8%;border:3px solid #ffe4a3;box-shadow:0 0 0 2px #211626,0 0 18px #ffc37daa;background:#ffe4a321}.scoreboard{background:#1e1c2e;border-color:#75607977}.player-score b,.player-score.right b,.code-box strong{color:#f4c08d}.game-clock{border-color:#5b4b66}.boards .scene{border:2px solid #896b78;box-shadow:0 18px 48px #0006}.boards{gap:20px}.board-label span{background:#f2bd80;color:#231822}.boards>div:nth-child(2) .board-label span{background:#d5b6ff}.info-bar{background:#211c2e;border-color:#67516e}.lobby-icon{background:#453350;color:#f4c088}.found-ring.mine{border-color:#fff0b8}.result{background:#232034;border-color:#926d79}
 @media(max-width:510px){.hero h1{letter-spacing:-2px}.boards{grid-template-columns:1fr}}
+
+/* V3: TikTok-inspired four-picture odd-one-out */
+.odd-panel{max-width:870px;margin:24px auto;padding:24px 30px 30px;border:1px solid #303e61;border-radius:24px;background:linear-gradient(135deg,#18233e,#10182c);box-shadow:0 20px 80px #03071250}
+.odd-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:22px}
+.odd-heading h2{font:800 clamp(24px,4vw,38px) Outfit,sans-serif;margin:7px 0;letter-spacing:-.8px}
+.odd-heading p{color:#adb9d1;margin:0;font-size:13px}
+.stage-label{color:#b7fb65;letter-spacing:2px;font-size:11px;font-weight:900}
+.round-counter{background:#b9ff69;border-radius:17px;padding:13px;color:#172816;font:900 27px Outfit,sans-serif;white-space:nowrap}
+.round-counter small{font-size:14px}
+.odd-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.odd-tile{position:relative;display:flex;justify-content:center;align-items:center;min-height:180px;aspect-ratio:1.4;background:linear-gradient(150deg,#fffefc,#faeaf0);border:4px solid transparent;border-radius:17px;overflow:hidden;transition:transform .15s,border-color .15s,box-shadow .15s;cursor:pointer}
+.odd-tile:hover:enabled,.odd-tile:focus-visible{transform:translateY(-3px);border-color:#b9ff69;box-shadow:0 8px 35px #b9ff6938;outline:none}
+.odd-tile svg{height:100%;width:100%;max-height:240px;pointer-events:none}
+.odd-tile:disabled{opacity:.7;cursor:default}
+.tile-number{position:absolute;top:9px;left:11px;background:#1a2034d6;border:1px solid #ffffff55;border-radius:8px;color:#fff;padding:5px 10px;font:900 12px Outfit,sans-serif}
+.odd-note{text-align:center;color:#a5b4cf;font-size:12px;margin:20px 0 0}
+.preview-four{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;max-width:440px;margin:auto;width:100%}
+.preview-tile{aspect-ratio:1.4;background:#fff6f8;border-radius:10px;overflow:hidden}
+.preview-tile svg{width:100%;height:100%}
+@media(max-width:650px){.odd-panel{padding:15px;margin:16px auto}.odd-grid{gap:8px}.odd-tile{border-width:3px;border-radius:11px;min-height:115px}.round-counter{font-size:20px}.odd-heading h2{font-size:24px}.tile-number{font-size:10px;padding:3px 7px;top:6px;left:6px}}
