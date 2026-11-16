@@ -1,27 +1,38 @@
-# Spot Duel V3 — مين المختلفة؟
+# Spot Duel V4 — مين المختلفة؟
 
-Two-player private room game: find the one different item among four nearly matching illustrated foods.
+Real-time 1v1 browser game with photorealistic product images and independent scoring.
 
-## Features
-- Netlify-hosted Vite/React frontend
-- Supabase anonymous authentication and Realtime + polling
-- 10 rounds; one choice per player per round
-- Both players answer independently; no speed bonus; one point for each correct answer
-- 120-second overall timer; highest score wins; draws allowed
+## Included
+- 36 locally hosted photorealistic product images (6 categories × 6).
+- 120 prebuilt odd-one-out puzzles (each includes 4 selectable products, a category-based question and an explanation).
+- 20 different puzzles per match; no repeated puzzle IDs within the same match.
+- Same puzzles for both players in each room, answered independently.
+- Correct = 1 point, incorrect = 0. No speed bonuses.
+- Supabase database RPC validates answers; correct choices are never included in the puzzle payload.
+- Netlify/Vite deployment configuration.
 
-## Upgrade from V2
-1. Open Supabase SQL Editor in the EXISTING project.
-2. Execute `supabase/upgrade-v3.sql` **once**, after V1 and V2 migrations.
-3. Create new rooms for V3; don't reuse V1/V2 rooms.
-4. Netlify environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (publishable key).
-5. Git push to your connected Netlify GitHub repo. Build: `npm run build`; publish: `dist`.
+## Upgrading an existing V3 Supabase project
+1. Back up your Supabase database. Finish/abandon active game rooms.
+2. SQL Editor: run **supabase/upgrade-v4.sql** after V1 schema, V2 and V3 upgrades. The migration is designed to be rerunnable, but finish any active matches before applying it.
+3. Upload/commit all files here, including `public/products/` (36 .webp files).
+4. Netlify → Environment variables:
+   - `VITE_SUPABASE_URL`: your Supabase Project URL
+   - `VITE_SUPABASE_ANON_KEY`: your publishable (`sb_publishable_...`) key
+   NEVER expose a service_role or secret key.
+5. Deploy GitHub branch `main`, build command `npm run build`, publish directory `dist`.
+6. Test from 2 separate browsers or private windows. One room = 2 distinct anonymous Supabase sessions.
 
-## Local dev
-```
+## Local
+```bash
 npm install
-cp .env.example .env
+cp .env.example .env  # on Windows: copy .env.example .env
 npm run dev
 ```
 
-## Note on fairness
-The SQL function checks the logged-in player's membership, ordering and score, and never offers direct read of the answer table. The illustrations and their variant parameters are shipped in browser JavaScript, so a technically experienced player could inspect client code to infer the answers. For public competitive release, render the puzzle variants from non-answer-revealing assets and randomize puzzles server-side. This MVP is intended for friendly matches.
+## Verification & caveats
+- Source package prepared; live Supabase/Netlify integration is NOT tested by the generator.
+- Product images are generated photorealistic product illustrations, not actual brand catalog photography.
+- The 120 puzzles reuse the 36 product assets in different combinations. Puzzle content deliberately uses category distinctions; some levels are easier than others.
+- The API keeps right answers server-side, but there is no captcha, rate-limiting, competitive anti-collusion or public matchmaking. Anonymous sign-ins can be abused on an unprotected public launch. Consider Supabase CAPTCHA / rate limits.
+- Match time is 5 minutes after a 3 second countdown. Realtime subscriptions poll every 2 seconds as fallback.
+- This schema assumes existing V3 `duel_odd_attempts` constraint names from the provided V3 SQL.

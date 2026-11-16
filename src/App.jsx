@@ -1,166 +1,115 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check, Copy, Gamepad2, Link as LinkIcon, LoaderCircle, Play, ShieldCheck, Swords, Users, Zap } from 'lucide-react'
+import { ArrowRight, Check, Copy, Gamepad2, LoaderCircle, Play, ShieldCheck, Swords, Users, Trophy, Timer, RotateCcw, Sparkles, LockKeyhole } from 'lucide-react'
 import { configured, supabase } from './supabase'
-import TilePicture from './OddArt'
 
-const ROUNDS = [
- ['CHOCOLATE', 'Find the different chocolate'],
- ['CUPCAKES', 'Which cupcake is different?'],
- ['COOKIES', 'One cookie has changed'],
- ['DONUTS', 'Look closely at the sprinkles'],
- ['ICE CREAM', 'Which ice cream is different?'],
- ['STRAWBERRIES', 'One strawberry is not the same'],
- ['AVOCADOS', 'Spot the odd avocado'],
- ['MACARONS', 'One macaron has changed'],
- ['LEMONS', 'Which lemon is different?'],
- ['PIZZA', 'One slice is hiding a difference']
-]
-const ODD_CHOICES = [2,3,1,4,2,1,3,4,1,2]
-const codeFromUrl = () => new URLSearchParams(window.location.search).get('room')?.toUpperCase() || ''
-const stamp = v => v ? new Date(v).getTime() : null
+const TOTAL=20
+const fromUrl=()=>new URLSearchParams(window.location.search).get('room')?.toUpperCase() || ''
+const stamp=v=>v?new Date(v).getTime():null
+const imageFor=id=>`/products/${id}.webp`
+const secondsText=s=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
+const preview=['cream-2','cream-4','shampoo-2','cream-5']
 
-export default function App() {
-  const [name,setName] = useState(localStorage.getItem('spot-name') || '')
-  const [joinCode,setJoinCode] = useState(codeFromUrl())
-  const [code,setCode] = useState('')
-  const [state,setState] = useState(null)
-  const [now,setNow] = useState(Date.now())
-  const [error,setError] = useState('')
-  const [message,setMessage] = useState('')
-  const [loading,setLoading] = useState(false)
-  const [authenticated,setAuthenticated] = useState(false)
-  const [copied,setCopied] = useState(false)
-  const pendingPick = useRef(false)
-  const currentCode = useRef('')
-
-  useEffect(()=>{
-    if (!configured) return
-    let mounted=true
-    async function auth(){
-      const {data:{session},error:sessionError} = await supabase.auth.getSession()
-      if (!mounted) return
-      if(sessionError) {setError(sessionError.message);return}
-      if (session) {setAuthenticated(true);return}
-      const {error:signError}=await supabase.auth.signInAnonymously()
-      if(mounted) {if(signError)setError(signError.message); else setAuthenticated(true)}
-    }
-    auth()
-    return ()=>{mounted=false}
-  },[])
-
-  const refresh=useCallback(async (roomCode)=>{
-    if(!roomCode || !supabase) return
-    const {data,error:err}=await supabase.rpc('duel_state',{p_code:roomCode})
-    if (!err && currentCode.current === roomCode) setState(data)
-  },[])
-
-  useEffect(()=>{
-    currentCode.current=code
-    if(!code || !supabase) return
-    refresh(code)
-    const channel=supabase.channel('duel-'+code).on('postgres_changes',{
-      event:'UPDATE',schema:'public',table:'duel_rooms'
-    },(payload)=>{if (payload.new.code===code)refresh(code)}).subscribe()
-    const poll=setInterval(()=>refresh(code),2000)
-    return ()=>{clearInterval(poll);supabase.removeChannel(channel)}
-  },[code,refresh])
-
-  useEffect(()=>{const tick=setInterval(()=>setNow(Date.now()),250);return()=>clearInterval(tick)},[])
-
-  async function enter(kind){
-    setError('');setMessage('')
-    if(!authenticated){setError('Supabase connection is not ready. Check Anonymous Sign-Ins.');return}
-    if(name.trim().length<1 || name.trim().length>20){setError('Choose a name (1–20 characters).');return}
-    if(kind==='join' && !/^[A-F0-9]{6}$/.test(joinCode.trim().toUpperCase())){setError('Enter a valid 6-character room code.');return}
-    setLoading(true)
-    try {
-      localStorage.setItem('spot-name',name.trim())
-      const {data,error:err}= await supabase.rpc(kind==='create'?'duel_create':'duel_join',kind==='create'?{p_name:name.trim()}:{p_code:joinCode.trim().toUpperCase(),p_name:name.trim()})
-      if(err)throw err
-      currentCode.current=data
-      setState(null);setCode(data)
-      window.history.replaceState(null,'','?room='+encodeURIComponent(data))
-    }catch(e){setError(e.message || 'Unexpected error')}finally{setLoading(false)}
+export default function App(){
+ const [name,setName]=useState(localStorage.getItem('spot-name')||'')
+ const [joinCode,setJoinCode]=useState(fromUrl())
+ const [code,setCode]=useState('')
+ const [state,setState]=useState(null)
+ const [now,setNow]=useState(Date.now())
+ const [error,setError]=useState('')
+ const [loading,setLoading]=useState(false)
+ const [authenticated,setAuthenticated]=useState(false)
+ const [reveal,setReveal]=useState(null)
+ const [copied,setCopied]=useState(false)
+ const busy=useRef(false), current=useRef(''), revealLock=useRef(false)
+ useEffect(()=>{
+  if(!configured)return
+  let alive=true
+  async function signIn(){
+   const {data,error:e}=await supabase.auth.getSession()
+   if(e){if(alive)setError(e.message);return}
+   if(data?.session){if(alive)setAuthenticated(true);return}
+   const {error:e2}=await supabase.auth.signInAnonymously()
+   if(alive){if(e2)setError(e2.message);else setAuthenticated(true)}
   }
-
-  async function ready(){
-    setError('');setLoading(true)
-    const {error:err}=await supabase.rpc('duel_ready',{p_code:code})
-    if(err)setError(err.message)
-    else await refresh(code)
-    setLoading(false)
-  }
-
-  async function pick(choice){
-    if(pendingPick.current || !state || state.my_round>=10)return
-    pendingPick.current=true
-    setMessage('')
-    try {
-      const {data,error:err}=await supabase.rpc('duel_choose',{p_code:code,p_round:state.my_round+1,p_choice:choice})
-      if(err)throw err
-      setMessage(data.correct?'Correct! +1 point':'Not this one. Next puzzle!')
-      await refresh(code)
-    } catch(e){setError(e.message)} finally{pendingPick.current=false}
-  }
-
-  function copyInvite(){
-    navigator.clipboard?.writeText(window.location.origin+'/?room='+code)
-    setCopied(true);setTimeout(()=>setCopied(false),1500)
-  }
-  function leave(){setCode('');setState(null);currentCode.current='';window.history.replaceState(null,'',window.location.pathname);setError('');setMessage('')}
-
-  const start=stamp(state?.started_at),end=stamp(state?.ends_at)
-  const waiting= Boolean(state && !start)
-  const countdown=Boolean(start && now<start)
-  const playing=Boolean(start && now>=start && now<end && (state?.my_round??10)<10)
-  const finished=Boolean(start && (now>=end || (state?.host_finished_at && state?.guest_finished_at)))
-  const timeLeft=Math.max(0,Math.ceil(((countdown?start:end)||now)-now)/1000)
-  const mine=state?.is_host?'host':'guest'
-  const myReady=state?.[mine+'_ready']
-  const myScore=state?.[mine+'_score'] || 0
-  const rivalScore=state?.[(mine==='host'?'guest':'host')+'_score'] || 0
-  const myFinish=stamp(state?.[mine+'_finished_at'])
-  const rivalFinish=stamp(state?.[(mine==='host'?'guest':'host')+'_finished_at'])
-  const winner=finished?(myScore===rivalScore?'draw':myScore>rivalScore?'win':'lose'):null
-  const round=Math.min(state?.my_round??0,9)
-
-  return <div className="app">
-    <header className="nav wrap"><div className="brand"><div className="brand-mark"><Swords size={21}/></div><span>SPOT<span className="accent">DUEL</span></span></div><div className="nav-pill"><span className="live-dot"/> 2 PLAYER ONLINE GAME</div></header>
-    {!code ? <main className="wrap landing">
-      <section className="hero"><div className="eyebrow"><Zap size={14}/> A NEW KIND OF VISUAL DUEL</div><h1>Four pictures.<br/><span>One is different.</span></h1><p>The viral “مين المختلفة” challenge — now a private 1v1 duel. Ten tricky food puzzles. Choose the odd one out, on your own. Most correct answers wins.</p></section>
-      <section className="home-grid"><div className="panel room-panel"><div className="panel-heading"><Gamepad2 size={22}/><span>PLAY WITH A FRIEND</span></div>
-        <label>Your nickname</label><input maxLength={20} value={name} onChange={e=>setName(e.target.value)} placeholder="Enter your player name" />
-        <button className="primary full" disabled={loading||!authenticated} onClick={()=>enter('create')}>{loading?<LoaderCircle className="spin"/>:<Play size={19} fill="currentColor"/>} CREATE PRIVATE ROOM <ArrowRight size={18}/></button>
-        <div className="or"><span>OR JOIN AN EXISTING MATCH</span></div>
-        <label>Invite code</label><div className="join-row"><input maxLength={6} value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="E.G. A1B2C3"/><button className="secondary" disabled={loading||!authenticated} onClick={()=>enter('join')}>JOIN <ArrowRight size={17}/></button></div>
-        {!configured&&<div className="alert">Setup required: copy .env.example to .env and add your Supabase project URL and publishable key.</div>}
-        {configured&&!authenticated&&<p className="muted small">Connecting to game services...</p>}
-      </div><div className="preview-panel"><div className="preview-heading"><span className="small-tag">HARD MODE</span><span>مين المختلفة؟</span></div><div className="preview-four">{[1,2,3,4].map(n=><div className="preview-tile" key={n}><TilePicture kind={1} odd={n===3}/></div>)}</div><div className="preview-footer"><span>🔎 10 TRICKY PUZZLES</span><span>⏱ 120 SECONDS</span><span>🏆 NO SPEED BONUS</span></div></div></section>
-      <div className="features"><span><Users size={16}/> INDEPENDENT 1V1</span><span><ShieldCheck size={16}/> VERIFIED SCORES</span><span><LinkIcon size={16}/> INVITE BY LINK</span></div>
-    </main> : <main className="wrap game-main">
-      <div className="game-header"><div><div className="eyebrow">PRIVATE MATCH</div><h1><span>مين المختلفة؟</span></h1></div><button className="text-button" onClick={leave}>← LEAVE ROOM</button></div>
-      {state?<>
-        <div className="scoreboard"><div className="player-score"><div className="player-label">{state.is_host?'YOU':'OPPONENT'} · HOST</div><strong>{state.host_name}</strong><b>{state.host_score}<small> / 10 CORRECT</small></b></div>
-          <div className="game-clock"><span>{finished?'MATCH ENDED':waiting?'WAITING':countdown?'GET READY':'TIME LEFT'}</span><strong>{waiting?'--:--':`${String(Math.floor(timeLeft/60)).padStart(2,'0')}:${String(timeLeft%60).padStart(2,'0')}`}</strong><small>{state.my_round} / 10 ANSWERED</small></div>
-          <div className="player-score right"><div className="player-label">{state.is_host?'OPPONENT':'YOU'} · GUEST</div><strong>{state.guest_name||'Waiting for opponent...'}</strong><b>{state.guest_score}<small> / 10 CORRECT</small></b></div></div>
-        {waiting?<section className="lobby panel"><div className="lobby-icon"><Users size={28}/></div><h2>Ready for the odd-one-out duel?</h2><p>Invite a friend. Each player solves 10 puzzles independently. One answer per round. Only correct answers count, never tapping speed.</p><div className="code-box"><span>ROOM CODE</span><strong>{code}</strong><button onClick={copyInvite}>{copied?<Check size={17}/>:<Copy size={17}/>} {copied?'COPIED':'COPY LINK'}</button></div>
-          <div className="ready-status"><span>{state.host_name} {state.host_ready?'✅ READY':'⌛ NOT READY'}</span><span>{state.guest_name||'Waiting for player 2...'} {state.guest_ready?'✅ READY':''}</span></div>
-          <button className="primary" onClick={ready} disabled={loading||myReady||!state.guest_name}>{myReady?'✅ WAITING FOR OPPONENT':<><Check size={18}/> I'M READY</>}</button>
-        </section>:<><div className="round-top"><span>10 PUZZLES · HARD MODE</span><span>YOUR ANSWERS ARE INDEPENDENT</span></div>
-          {(playing||(!finished&&start&&now>=start))&&<section className="odd-panel">
-             {(state.my_round??0)<10 ? <>
-               <div className="odd-heading"><div><span className="stage-label">{ROUNDS[round][0]} · ROUND {round+1}/10</span><h2>{ROUNDS[round][1]}</h2><p>مين المختلفة؟ · Choose ONE picture</p></div><div className="round-counter">{round+1}<small>/10</small></div></div>
-               <div className="odd-grid">{[1,2,3,4].map(n=><button type="button" key={`${round}-${n}`} disabled={!playing||pendingPick.current} className="odd-tile" onClick={()=>pick(n)} aria-label={`Choose picture ${n}`}><TilePicture kind={round} odd={n===ODD_CHOICES[round]}/><span className="tile-number">{String(n).padStart(2,'0')}</span></button>)}</div>
-               <p className="odd-note">Look very closely. Only one detail is different.</p>
-             </>:<div className="result"><div className="result-emoji">✨</div><h2>ALL 10 ANSWERED!</h2><p>You scored {myScore}/10. Your opponent can finish independently.</p></div>}
-           </section>}
-          {countdown&&<div className="info-bar">Get ready! Match starts in <strong>{timeLeft}</strong>...</div>}
-          {playing&&<div className="info-bar">{message||'One choice per round. No speed bonus. Most correct answers wins!'}</div>}
-          {finished&&<div className="result"><div className="result-emoji">{winner==='win'?'🏆':winner==='lose'?'🎯':'🤝'}</div><h2>{winner==='win'?'YOU WON!':winner==='lose'?'NICE TRY!':'IT’S A DRAW!'}</h2><p>You answered {myScore}/10 correctly · Opponent: {rivalScore}/10. No time bonus.</p><button className="primary" onClick={leave}>PLAY ANOTHER MATCH <ArrowRight size={18}/></button></div>}
-        </>}
-      </>:<div className="panel loading">Connecting to room...</div>}
-    </main>}
-    {error&&<div className="toast" role="alert">{error}<button onClick={()=>setError('')}>✕</button></div>}
-    <footer className="footer">SPOTDUEL · MADE FOR FRIENDLY COMPETITION · NO DOWNLOAD REQUIRED</footer>
-  </div>
+  signIn();return()=>{alive=false}
+ },[])
+ const refresh=useCallback(async c=>{
+  if(!c||!supabase||revealLock.current)return
+  const {data,error:e}=await supabase.rpc('duel_state',{p_code:c})
+  if(!e&&current.current===c)setState(data)
+ },[])
+ useEffect(()=>{
+  current.current=code
+  if(!code||!supabase)return
+  refresh(code)
+  const channel=supabase.channel('v4-'+code).on('postgres_changes',{
+   event:'UPDATE',schema:'public',table:'duel_rooms'
+  },p=>{if(p.new.code===code)refresh(code)}).subscribe()
+  const poll=setInterval(()=>refresh(code),2000)
+  return()=>{clearInterval(poll);supabase.removeChannel(channel)}
+ },[code,refresh])
+ useEffect(()=>{const tick=setInterval(()=>setNow(Date.now()),250);return()=>clearInterval(tick)},[])
+ async function enter(kind){
+  setError('')
+  if(!authenticated){setError('Connection not ready. Enable anonymous sign-ins in Supabase.');return}
+  if(name.trim().length<1||name.trim().length>20){setError('Choose a name from 1 to 20 characters.');return}
+  if(kind==='join'&&!/^[A-F0-9]{6}$/.test(joinCode.trim().toUpperCase())){setError('Please enter a six-character room code.');return}
+  setLoading(true)
+  try{
+   localStorage.setItem('spot-name',name.trim())
+   const {data,error:e}=await supabase.rpc(kind==='create'?'duel_create':'duel_join',kind==='create'?{p_name:name.trim()}:{p_code:joinCode.trim().toUpperCase(),p_name:name.trim()})
+   if(e)throw e
+   current.current=data;setCode(data);setState(null);setReveal(null)
+   window.history.replaceState(null,'','?room='+encodeURIComponent(data))
+  }catch(e){setError(e.message||'Could not enter room')}finally{setLoading(false)}
+ }
+ async function ready(){
+  setError('');setLoading(true)
+  const {error:e}=await supabase.rpc('duel_ready',{p_code:code})
+  if(e)setError(e.message);else await refresh(code)
+  setLoading(false)
+ }
+ async function pick(n){
+  if(busy.current||revealLock.current||!state||state.my_round>=TOTAL)return
+  busy.current=true;revealLock.current=true
+  try{
+   const {data,error:e}=await supabase.rpc('duel_choose',{p_code:code,p_round:state.my_round+1,p_choice:n})
+   if(e)throw e
+   if(data?.result!=='answered'){revealLock.current=false;setError('This round is not currently active.');await refresh(code);return}
+   setReveal({correct:data.correct,answer:data.correct_choice,choice:n,explanation:data.explanation,round:state.my_round+1})
+  }catch(e){revealLock.current=false;setError(e.message||'Could not save answer');await refresh(code)}finally{busy.current=false}
+ }
+ async function nextQuestion(){setReveal(null);revealLock.current=false;await refresh(code)}
+ function leave(){revealLock.current=false;setReveal(null);setCode('');setState(null);current.current='';setError('');window.history.replaceState(null,'',window.location.pathname)}
+ async function copyInvite(){try{await navigator.clipboard.writeText(location.origin+'/?room='+code);setCopied(true);setTimeout(()=>setCopied(false),1200)}catch{setError('Copy failed. Share the room code instead.')}}
+ const start=stamp(state?.started_at),end=stamp(state?.ends_at)
+ const waiting=!!(state&&!start),countdown=!!(start&&now<start)
+ const finished=!!(start&&(now>=end||(state?.host_finished_at&&state?.guest_finished_at)))
+ const playing=!!(start&&now>=start&&now<end&&!finished&&(state?.my_round??TOTAL)<TOTAL)
+ const timeLeft=Math.max(0,Math.ceil((((countdown?start:end)||now)-now)/1000))
+ const mine=state?.is_host?'host':'guest',myReady=state?.[mine+'_ready']
+ const myScore=state?.[mine+'_score']??0,other=mine==='host'?'guest':'host',rivalScore=state?.[other+'_score']??0
+ const winner=myScore===rivalScore?'draw':myScore>rivalScore?'win':'lose'
+ const choices=Array.isArray(state?.options)?state.options:[]
+ return <div className="app">
+  <header className="topbar wrap"><div className="logo"><div className="logo-icon">⚡</div><strong>SPOT<span>DUEL</span></strong><small>مين المختلفة؟</small></div><div className="live"><i/> LIVE MULTIPLAYER <span>· 2 PLAYERS</span></div></header>
+  {!code?<main className="wrap home">
+   <section className="hero"><div className="eyebrow"><Sparkles size={15}/> THE ODD ONE OUT CHALLENGE</div><h1>مين <em>المختلفة؟</em></h1><h2>4 PRODUCTS. 1 ODD ONE OUT.</h2><p>Play the viral-style visual challenge against a friend. Realistic product images, category questions, 20 rounds and no speed bonus. <strong>Think first, tap once.</strong></p><div className="chips"><span>🎯 120 PUZZLES</span><span>📸 36 PRODUCT PHOTOS</span><span>🕹️ PRIVATE 1V1</span></div></section>
+   <section className="home-layout"><div className="panel start-panel"><div className="section-label"><Gamepad2 size={21}/> START YOUR DUEL</div><label>Your player name</label><input value={name} maxLength={20} onChange={e=>setName(e.target.value)} placeholder="e.g. PlayerOne"/><button className="gold-button" disabled={loading||!authenticated} onClick={()=>enter('create')}>{loading?<LoaderCircle className="spin" size={18}/>:<Play size={18}/>} CREATE PRIVATE ROOM <ArrowRight size={18}/></button><div className="separation">OR JOIN A FRIEND</div><label>6-digit invitation code</label><div className="join"><input maxLength={6} value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="A1B2C3"/><button className="outline-button" disabled={loading||!authenticated} onClick={()=>enter('join')}>JOIN →</button></div>{!configured&&<div className="notice">Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Netlify environment variables.</div>}{configured&&!authenticated&&<div className="notice">Connecting to Supabase...</div>}</div>
+   <div className="demo"><div className="demo-title"><span>⚡ DEMO ROUND</span><strong>مين المختلفة؟</strong></div><div className="demo-prompt">Which one is NOT a skin cream?</div><div className="products">{preview.map((id,i)=><div className="product" key={id}><img src={imageFor(id)} alt={`Demo product ${i+1}`}/><span>{String(i+1).padStart(2,'0')}</span></div>)}</div><div className="demo-foot"><span>ONE CORRECT ANSWER</span><span>NO SPEED BONUS</span></div></div></section>
+   <div className="features"><span><Users size={18}/> INDEPENDENT ANSWERS</span><span><ShieldCheck size={18}/> SERVER-VERIFIED SCORES</span><span><LockKeyhole size={18}/> PRIVATE ROOM</span></div>
+  </main>:<main className="wrap match"><div className="match-title"><div><span className="eyebrow">PRIVATE MATCH · {code}</span><h1>مين المختلفة؟</h1></div><button className="exit" onClick={leave}>← LEAVE MATCH</button></div>
+   {!state?<div className="panel center">Loading room...</div>:<>
+    <div className="scorebar"><div className="player"><span>{state.is_host?'YOU':'OPPONENT'} · HOST</span><strong>{state.host_name}</strong><b>{state.host_score}<small> / {TOTAL}</small></b></div><div className="timer"><span><Timer size={15}/> {waiting?'LOBBY':countdown?'STARTING':finished?'FINISHED':'TIME LEFT'}</span><strong>{waiting?'--:--':secondsText(timeLeft)}</strong><small>{state.my_round}/{TOTAL} ANSWERED</small></div><div className="player"><span>{state.is_host?'OPPONENT':'YOU'} · GUEST</span><strong>{state.guest_name||'Waiting...'}</strong><b>{state.guest_score}<small> / {TOTAL}</small></b></div></div>
+    {waiting?<section className="panel lobby"><div className="big-emoji">🤝</div><h2>YOUR PRIVATE ARENA IS READY</h2><p>Share the link with a friend. Each person answers separately. Correct answer = one point, wrong answer = zero.</p><div className="codeblock"><span>INVITATION CODE</span><strong>{code}</strong><button className="outline-button" onClick={copyInvite}>{copied?<Check size={16}/>:<Copy size={16}/>} {copied?'COPIED':'COPY INVITE'}</button></div><div className="ready-players"><span>{state.host_name} · {state.host_ready?'✅ Ready':'⏳ Not ready'}</span><span>{state.guest_name||'Waiting for player 2'} · {state.guest_ready?'✅ Ready':'⏳ Not ready'}</span></div><button className="gold-button lobby-ready" onClick={ready} disabled={loading||myReady||!state.guest_name}>{myReady?'✅ READY — WAITING':"I'M READY →"}</button></section>:
+     countdown?<div className="panel center"><div className="big-emoji">⚡</div><h2>GET READY!</h2><strong className="countdown-number">{timeLeft}</strong></div>:
+     finished?<div className="panel result center"><div className="big-emoji">{winner==='win'?'🏆':winner==='draw'?'🤝':'🎯'}</div><h2>{winner==='win'?'YOU WIN!':winner==='draw'?"IT'S A DRAW!":'MATCH OVER!'}</h2><p>Your score: <b>{myScore}/{TOTAL}</b> · Opponent: <b>{rivalScore}/{TOTAL}</b></p><p>Only correct answers count. No speed bonus.</p><button className="gold-button" onClick={leave}><RotateCcw size={17}/> NEW MATCH</button></div>:
+     <section className="arena"><div className="round-header"><div><span>ROUND {Math.min((state.my_round??0)+1,TOTAL)} / {TOTAL} · {state.category?.toUpperCase()}</span><h2>{state.question||'Which one is different?'}</h2><p className="arabic-question" dir="rtl">{state.question_ar||'مين المختلفة؟'}</p></div><div className="progress-circle">{Math.min((state.my_round??0)+1,TOTAL)}<small>/{TOTAL}</small></div></div>
+      {(state.my_round??0)>=TOTAL?<div className="panel center"><div className="big-emoji">✨</div><h2>ALL {TOTAL} ANSWERED!</h2><p>Your score: {myScore}/{TOTAL}. Your opponent can finish separately.</p><p>The final result will appear after both players finish or the timer ends.</p></div>:<><div className="products game-products">{choices.map((id,i)=><button className={'product clickable '+(reveal?(i+1===reveal.answer?'right':i+1===reveal.choice?'wrong':''):'')} onClick={()=>pick(i+1)} disabled={!playing||!!reveal||busy.current} key={`${state.my_round}-${id}-${i}`}><img src={imageFor(id)} alt={`Product choice ${i+1}`}/><span>{String(i+1).padStart(2,'0')}</span></button>)}</div>{reveal?<div className={'feedback '+(reveal.correct?'good':'bad')}><div><strong>{reveal.correct?'✅ CORRECT! +1 POINT':'❌ NOT QUITE — +0 POINTS'}</strong><p>Correct option: {reveal.answer}. {reveal.explanation}</p></div><button className="gold-button" onClick={nextQuestion}>NEXT QUESTION <ArrowRight size={16}/></button></div>:<p className="hint">Choose only one product. Both players answer independently, and the right answer scores exactly 1 point.</p>}</>}
+     </section>}
+    </>}
+  </main>}
+  {error&&<div className="toast" role="alert">{error}<button onClick={()=>setError('')}>✕</button></div>}
+  <footer>SPOT DUEL · NO SPEED BONUS · PLAY FAIR · MADE FOR THE WEB</footer>
+ </div>
 }
